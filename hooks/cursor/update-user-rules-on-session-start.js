@@ -14,16 +14,21 @@ const DATA_DIR = process.env.CURSOR_RULE_HOOK_DATA_DIR || "hooks/.data";
 const RECORD_PATH = process.env.CURSOR_RULE_HOOK_RECORD_PATH || path.join(DATA_DIR, "rules-last-update-date.txt");
 const RULES_DIR = process.env.CURSOR_RULE_HOOK_RULES_DIR || "rules";
 
-// [业务] 文档内容代理接口地址：把指定 wiki 文档转换为 rule 文件内容。
-// [设计] 不内置任何团队私有地址，通过环境变量 CURSOR_RULE_HOOK_REQUEST_URL 注入；
-//        未配置时为空，main 会直接跳过同步。doc 地址放在请求体里，网关地址保持固定，
-//        避免每个文档重复拼接完整请求 URL。
-const REQUEST_URL = process.env.CURSOR_RULE_HOOK_REQUEST_URL || "";
+// [业务] 团队规则文件下载根地址，默认指向本公开仓的 cursor 规则目录。
+// [设计] 规则文件已随仓库发布且脱敏，默认开箱即用；可用 CURSOR_RULE_HOOK_BASE_URL 覆盖为内网或私有地址。
+//        末尾斜杠统一去除，拼接文件名时不重复。
+const BASE_URL = (
+  process.env.CURSOR_RULE_HOOK_BASE_URL ||
+  "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules/cursor"
+).replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.CURSOR_RULE_HOOK_TIMEOUT_MS || "20000", 10);
 
-// [业务] 需要同步为用户级 rules 的团队文档地址列表。
-// [设计] 通过 CURSOR_RULE_HOOK_DOC_URLS 注入，多个地址用逗号或换行分隔；未配置时为空、跳过同步。
-const DOC_URLS = (process.env.CURSOR_RULE_HOOK_DOC_URLS || "")
+// [业务] 需要同步为用户级 rules 的规则文件名列表（Cursor 用 .mdc）。
+// [设计] 通过 CURSOR_RULE_HOOK_FILES 覆盖（逗号或换行分隔）；默认同步本仓库现有全部 cursor 规则。
+const RULE_FILES = (
+  process.env.CURSOR_RULE_HOOK_FILES ||
+  "Android.mdc,general.mdc,iOS.mdc,Java.mdc,React.mdc,ReactNative.mdc"
+)
   .split(/[\n,]/)
   .map((item) => item.trim())
   .filter(Boolean);
@@ -55,47 +60,23 @@ async function ensureDailyUpdate(recordPath, today) {
   return true;
 }
 
-function splitRuleContent(content) {
-  // [业务] 文档第一段约定为规则文件名，空行后才是实际 rule 正文。
-  const separatorIndex = content.indexOf("\n\n");
-  if (separatorIndex < 0) {
-    throw new Error("规则内容缺少文件名和正文分隔空行。");
-  }
-
-  const rawName = content.slice(0, separatorIndex).trim();
-  if (!rawName) {
-    throw new Error("规则内容缺少文件名。");
-  }
-
-  // [设计] 文件名来自远端文档，需要替换操作系统不允许的路径字符。
-  const safeName = rawName.replace(/[\\/:*?"<>|]/g, "_");
-  return {
-    fileName: `${safeName}.mdc`,
-    body: content.slice(separatorIndex + 2)
-  };
-}
-
-async function writeRuleFile(rulesDir, ruleFile) {
+async function writeRuleFile(rulesDir, fileName, body) {
   await fs.mkdir(rulesDir, { recursive: true });
-  const targetPath = path.join(rulesDir, ruleFile.fileName);
-  await fs.writeFile(targetPath, ruleFile.body, "utf8");
+  const targetPath = path.join(rulesDir, fileName);
+  await fs.writeFile(targetPath, body, "utf8");
   return targetPath;
 }
 
-async function fetchRuleContent(docUrl) {
+// [业务] 从规则仓库下载单个规则文件的原始内容。
+// [设计] GitHub raw 是静态文件，直接 GET 取整份内容；文件名由调用方从清单给出，不再从正文解析。
+async function fetchRuleContent(fileName) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    // [业务] 向文档代理接口请求指定 wiki 的 Markdown/rule 内容。
-    const response = await fetch(REQUEST_URL, {
-      method: "POST",
-      headers: {
-        "User-Agent": "yaak",
-        Accept: "*/*",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ doc: docUrl }),
+    const response = await fetch(`${BASE_URL}/${fileName}`, {
+      method: "GET",
+      headers: { Accept: "text/plain, */*" },
       signal: controller.signal
     });
 
@@ -103,32 +84,31 @@ async function fetchRuleContent(docUrl) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const payload = await response.json();
-    // [设计] 快速校验接口契约，避免把异常响应写入本地 rules 文件。
-    if (!payload || payload.success !== true || !payload.data || typeof payload.data.content !== "string") {
-      throw new Error("接口返回内容不符合预期。");
-    }
-
-    return payload.data.content;
+    // [设计] raw 文件即规则正文，无需再解析 JSON 或拆分文件名。
+    return await response.text();
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function updateRules(docUrls = DOC_URLS, rulesDir = RULES_DIR) {
-  for (const docUrl of docUrls) {
-    // [业务] 每个文档独立生成一个 .mdc 规则文件。
-    const content = await fetchRuleContent(docUrl);
-    const ruleFile = splitRuleContent(content);
-    const writtenPath = await writeRuleFile(rulesDir, ruleFile);
-    console.error(`[sessionStart-rule-hook] 已更新规则：${writtenPath}`);
+async function updateRules(ruleFiles = RULE_FILES, rulesDir = RULES_DIR) {
+  for (const fileName of ruleFiles) {
+    try {
+      // [业务] 每个规则文件独立下载并落地。
+      const body = await fetchRuleContent(fileName);
+      const writtenPath = await writeRuleFile(rulesDir, fileName, body);
+      console.error(`[sessionStart-rule-hook] 已更新规则：${writtenPath}`);
+    } catch (error) {
+      // [设计] 单个文件失败只记录，不影响其余规则同步。
+      console.error(`[sessionStart-rule-hook] 规则 ${fileName} 同步失败：${error.message}`);
+    }
   }
 }
 
 async function main() {
-  // [业务] 未配置团队文档来源时，规则同步整体跳过，保持 hook 无害可用。
-  // [设计] 公开仓不内置任何私有地址；团队通过 CURSOR_RULE_HOOK_REQUEST_URL / _DOC_URLS 注入后才启用。
-  if (!REQUEST_URL || DOC_URLS.length === 0) {
+  // [业务] 未配置下载源或文件清单时跳过同步，保持 hook 无害可用。
+  // [设计] 默认指向本公开仓、开箱即用；把 CURSOR_RULE_HOOK_BASE_URL 或 _FILES 设为空即可关闭同步。
+  if (!BASE_URL || RULE_FILES.length === 0) {
     return;
   }
 
@@ -156,6 +136,5 @@ if (require.main === module) {
 module.exports = {
   ensureDailyUpdate,
   getLocalDateText,
-  splitRuleContent,
   writeRuleFile
 };
