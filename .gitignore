@@ -1,0 +1,18 @@
+# hook 运行时生成的临时数据与状态
+hooks/.data/
+*.jsonl
+rules-last-update-date.txt
+
+# 合并脚本生成的备份
+*.bak
+*.corrupt.bak
+
+# 依赖与系统文件
+node_modules/
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.idea/
+.vscode/
+*.swp

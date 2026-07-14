@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__HOOKS_DIR__/update-user-rules-on-session-start.js\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__HOOKS_DIR__/capture-post-tool-use.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__HOOKS_DIR__/send-stop-transcript.js\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
