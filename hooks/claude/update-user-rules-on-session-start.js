@@ -38,6 +38,23 @@ const BASE_URL = (
   process.env.CLAUDE_RULE_HOOK_BASE_URL ||
   "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules"
 ).replace(/\/+$/, "");
+
+// [业务] 由 GitHub raw 根地址推导 jsDelivr CDN 镜像地址，作为 raw 拉取失败时的兜底。
+// [设计] 仅当 BASE_URL 是 GitHub raw 时才推导（jsDelivr 只镜像公开 GitHub 仓）；
+//        用户若把 BASE_URL 覆盖为内网/后端地址，则返回空串、不启用兜底。
+//        raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}
+//        → cdn.jsdelivr.net/gh/{owner}/{repo}@{ref}/{path}
+function deriveJsdelivrBase(rawBase) {
+  const m = /^https?:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.*)$/.exec(rawBase);
+  if (!m) {
+    return "";
+  }
+  const [, owner, repo, ref, rest] = m;
+  return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${rest}`.replace(/\/+$/, "");
+}
+
+// [字段] FALLBACK_BASE_URL：jsDelivr 兜底根地址；为空表示无兜底（非 GitHub raw 来源）。
+const FALLBACK_BASE_URL = deriveJsdelivrBase(BASE_URL);
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.CLAUDE_RULE_HOOK_TIMEOUT_MS || "20000", 10);
 
 // [业务] 需要同步为用户级 rules 的规则文件名列表。
@@ -84,14 +101,14 @@ async function writeRuleFile(rulesDir, fileName, body) {
   return targetPath;
 }
 
-// [业务] 从规则仓库下载单个规则文件的原始内容。
-// [设计] GitHub raw 是静态文件，直接 GET 取整份内容；文件名由调用方从清单给出，不再从正文解析。
-async function fetchRuleContent(fileName) {
+// [业务] 从单个 URL 下载规则文件的原始内容，独立超时。
+// [设计] 每次尝试用各自的 AbortController，避免一次超时影响另一个来源的重试。
+async function fetchFrom(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${BASE_URL}/${fileName}`, {
+    const response = await fetch(url, {
       method: "GET",
       headers: { Accept: "text/plain, */*" },
       signal: controller.signal
@@ -105,6 +122,22 @@ async function fetchRuleContent(fileName) {
     return await response.text();
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+// [业务] 下载单个规则文件：GitHub raw 优先，失败时用 jsDelivr CDN 镜像兜底。
+// [设计] 国内直连 raw.githubusercontent.com 常因 DNS 污染失败，jsDelivr（Fastly）更稳；
+//        但 jsDelivr 对分支有 ~12h 缓存，故 raw 优先以拿最新，仅在 raw 失败时兜底。
+//        无兜底地址（非 GitHub raw 来源）时直接抛出 raw 的错误。
+async function fetchRuleContent(fileName) {
+  try {
+    return await fetchFrom(`${BASE_URL}/${fileName}`);
+  } catch (primaryError) {
+    if (!FALLBACK_BASE_URL) {
+      throw primaryError;
+    }
+    console.error(`[sessionStart-rule-hook] ${fileName} raw 拉取失败（${primaryError.message}），改用 jsDelivr 兜底`);
+    return await fetchFrom(`${FALLBACK_BASE_URL}/${fileName}`);
   }
 }
 
