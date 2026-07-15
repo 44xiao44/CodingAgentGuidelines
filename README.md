@@ -187,16 +187,16 @@ Cursor 端前缀为 `CURSOR_`，Claude 端前缀为 `CLAUDE_`。
 
 **规则同步（默认开启，从本仓库拉取，开箱即用）：**
 
-规则文件已随本仓库发布（`rules/claude/`、`rules/cursor/`），会话开始时每天最多一次从仓库 raw 地址下载到本地。以下变量用于改用其他来源或关闭同步：
+规则文件已随本仓库发布，只维护**一套** `.md`（`rules/` 目录）。会话开始时每天最多一次从仓库 raw 地址下载到本地：Claude 端原样写为 `.md`，Cursor 端落地时改写扩展名为 `.mdc`（正文相同）。以下变量用于改用其他来源或关闭同步：
 
 | 变量（Claude 示例） | 作用 | 默认值 |
 |---------------------|------|--------|
-| `CLAUDE_RULE_HOOK_BASE_URL` | 规则文件下载根地址；**设为空则关闭同步** | 本仓库 `rules/claude` 的 raw 地址 |
-| `CLAUDE_RULE_HOOK_FILES` | 规则文件名清单，逗号或换行分隔；**设为空则关闭同步** | 仓库现有全部规则文件名 |
+| `CLAUDE_RULE_HOOK_BASE_URL` | 规则文件下载根地址；**设为空则关闭同步** | 本仓库 `rules` 的 raw 地址 |
+| `CLAUDE_RULE_HOOK_FILES` | 规则文件名清单（`.md` 源名），逗号或换行分隔；**设为空则关闭同步** | 仓库现有全部规则文件名 |
 | `CLAUDE_RULE_HOOK_RULES_DIR` | 团队规则输出目录 | `~/.claude/rules/team-sync` |
 | `CLAUDE_RULE_HOOK_TIMEOUT_MS` | 单文件下载超时（毫秒） | 20000 |
 
-> Cursor 端同名变量：`CURSOR_RULE_HOOK_BASE_URL`（默认指向 `rules/cursor`）、`CURSOR_RULE_HOOK_FILES`（默认 6 个 `.mdc`）等。
+> Cursor 端同名变量前缀为 `CURSOR_`，`BASE_URL` 与 `FILES` 默认值与 Claude 端**完全一致**（同一份 9 个 `.md` 清单），仅落地时把扩展名转为 `.mdc`。
 
 **会话上报（默认关闭，需显式配置后端地址才启用）：**
 
@@ -244,9 +244,9 @@ rule-install/
 │   └── claude-settings.template.json   Claude 配置模板（含 __HOOKS_DIR__ 占位符）
 ├── lib/
 │   └── merge-config.js             三端共用的 JSON 智能合并脚本
-├── rules/                          团队规则文件，供规则同步 hook 下载
-│   ├── claude/                     Claude 版规则（.md，9 个）
-│   └── cursor/                     Cursor 版规则（.mdc，6 个）
+├── rules/                          团队规则文件（单套 .md，9 个），Claude/Cursor 共用
+│   ├── Android.md  Flutter.md  general.md  iOS.md  Java.md
+│   └── React.md  ReactNative.md  readme.md  uni-app.md
 └── hooks/
     ├── cursor/                     Cursor 版三个 hook
     │   ├── update-user-rules-on-session-start.js

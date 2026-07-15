@@ -36,7 +36,7 @@ const BLOCK_END = "<!-- TEAM-RULES:END -->";
 //        末尾斜杠统一去除，拼接文件名时不重复。
 const BASE_URL = (
   process.env.CLAUDE_RULE_HOOK_BASE_URL ||
-  "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules/claude"
+  "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules"
 ).replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.CLAUDE_RULE_HOOK_TIMEOUT_MS || "20000", 10);
 

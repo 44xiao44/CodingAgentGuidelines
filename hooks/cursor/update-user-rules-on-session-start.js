@@ -14,20 +14,21 @@ const DATA_DIR = process.env.CURSOR_RULE_HOOK_DATA_DIR || "hooks/.data";
 const RECORD_PATH = process.env.CURSOR_RULE_HOOK_RECORD_PATH || path.join(DATA_DIR, "rules-last-update-date.txt");
 const RULES_DIR = process.env.CURSOR_RULE_HOOK_RULES_DIR || "rules";
 
-// [业务] 团队规则文件下载根地址，默认指向本公开仓的 cursor 规则目录。
+// [业务] 团队规则文件下载根地址，默认指向本公开仓的规则目录。
 // [设计] 规则文件已随仓库发布且脱敏，默认开箱即用；可用 CURSOR_RULE_HOOK_BASE_URL 覆盖为内网或私有地址。
 //        末尾斜杠统一去除，拼接文件名时不重复。
 const BASE_URL = (
   process.env.CURSOR_RULE_HOOK_BASE_URL ||
-  "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules/cursor"
+  "https://raw.githubusercontent.com/44xiao44/CodingAgentGuidelines/main/rules"
 ).replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.CURSOR_RULE_HOOK_TIMEOUT_MS || "20000", 10);
 
-// [业务] 需要同步为用户级 rules 的规则文件名列表（Cursor 用 .mdc）。
-// [设计] 通过 CURSOR_RULE_HOOK_FILES 覆盖（逗号或换行分隔）；默认同步本仓库现有全部 cursor 规则。
+// [业务] 需要同步为用户级 rules 的规则文件名列表。
+// [设计] 仓库只维护一套 .md 源文件；此处列 .md 源名，下载后 Cursor 端落地时改写为 .mdc。
+//        通过 CURSOR_RULE_HOOK_FILES 覆盖（逗号或换行分隔），保持与 Claude 端同一份清单。
 const RULE_FILES = (
   process.env.CURSOR_RULE_HOOK_FILES ||
-  "Android.mdc,general.mdc,iOS.mdc,Java.mdc,React.mdc,ReactNative.mdc"
+  "Android.md,Flutter.md,general.md,iOS.md,Java.md,React.md,ReactNative.md,readme.md,uni-app.md"
 )
   .split(/[\n,]/)
   .map((item) => item.trim())
@@ -94,9 +95,11 @@ async function fetchRuleContent(fileName) {
 async function updateRules(ruleFiles = RULE_FILES, rulesDir = RULES_DIR) {
   for (const fileName of ruleFiles) {
     try {
-      // [业务] 每个规则文件独立下载并落地。
+      // [业务] 用仓库中的 .md 源名下载，Cursor 端落地时改写扩展名为 .mdc。
+      // [设计] 仓库只维护一套 .md，Cursor 识别 .mdc，故仅在写入文件名处做转换，正文不变。
       const body = await fetchRuleContent(fileName);
-      const writtenPath = await writeRuleFile(rulesDir, fileName, body);
+      const localName = fileName.replace(/\.md$/i, ".mdc");
+      const writtenPath = await writeRuleFile(rulesDir, localName, body);
       console.error(`[sessionStart-rule-hook] 已更新规则：${writtenPath}`);
     } catch (error) {
       // [设计] 单个文件失败只记录，不影响其余规则同步。
