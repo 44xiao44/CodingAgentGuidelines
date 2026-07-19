@@ -1,5 +1,7 @@
 # 团队 Hook 安装工具（rule-install）
 
+> 语言：**中文** | [English](README.en.md)
+
 为团队成员的 **Cursor** 与 **Claude Code** 一键配置三个 hook，把"团队规范下发"和"会话经验沉淀"接入到每个人的本地开发环境。提供 Windows / macOS / Linux 三套安装脚本。
 
 ## 项目简介
