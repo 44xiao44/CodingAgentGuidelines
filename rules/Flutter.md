@@ -441,6 +441,7 @@ final darkTheme = ThemeData(
 - 敏感数据（token、密钥） → `flutter_secure_storage`
 - 关系数据、复杂查询、迁移 → **`drift`**（SQLite + 类型安全）
 - NoSQL、性能极致、对象持久化 → **`isar`**
+- **本地数据库批量写**：drift 用 `batch((b) {...})`、isar 用 `writeTxn` 合并到单事务；超大列表按「行数 × 列数 < SQLite 变量上限」分批（drift），阈值提为常量；耗时批量写放异步/isolate，不阻塞 UI
 
 **列表组件**：
 - 静态、≤20 项 → `Column` + `SingleChildScrollView`

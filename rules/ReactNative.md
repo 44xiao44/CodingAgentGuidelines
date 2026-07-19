@@ -360,6 +360,7 @@ interface Props {
 - 敏感数据（token、密钥） → **react-native-keychain**
 - 关系型数据 → **react-native-sqlite-storage**
 - 复杂对象图、性能 → **Realm 6.x**
+- **SQLite 批量写**：用 `transaction` 包裹批量 insert/update，减少逐条 fsync；超大数组按「行数 × 列数 < SQLite 变量上限」分批，阈值提为常量；批量写异步执行，不阻塞 JS 线程
 
 **React Navigation 5 vs react-native-navigation（Wix）**：
 - 默认 **React Navigation 5**（社区主流，与 Expo 兼容）

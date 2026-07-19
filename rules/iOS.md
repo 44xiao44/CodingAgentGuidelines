@@ -665,6 +665,7 @@ final class UserDao {
 **约定**：
 - 一个 App 只用一种语言绑定（项目内 OC 与 Swift 二选一）；若历史已有 WCDB OC，新 Swift 模块**通过 OC Wrapper 调用**而非两端各自打开同一文件
 - 写操作用 `try? database.run(transaction: { ... })` 包裹保证原子
+- **批量写**：大批量插入/更新用 `database.run(transaction:)` 包裹，保证原子并减少 fsync；超大数组分批，规避单次内存峰值与长事务阻塞（阈值按记录大小定，提为常量）；写操作放后台队列，不占主线程
 - 长期使用一个 `Database` 实例，不要每次新建
 - Schema 变更必须有 migration 计划；用 `Database.addColumn` 而非删表重建
 

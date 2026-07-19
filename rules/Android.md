@@ -419,6 +419,7 @@ class GetCurrentUserUseCase @Inject constructor(
 - **Compose 性能**：`@Stable` / `@Immutable` 标注；`LazyColumn` 提供 `key` 与 `contentType`
 - **避免** `View.GONE` 与 `View.VISIBLE` 频繁切换大子树（用 `ViewStub`）
 - **Memory leaks**：dev 构建集成 **LeakCanary**（仅 debug）
+- **本地数据库批量写（Room）**：大批量 insert/update/delete 用单个 `@Transaction` 包裹，避免逐条隐式事务多次磁盘同步；超大列表按「行数 × 列数 < SQLite 变量上限（旧版 999 / 新版 32766）」分批，阈值提为带注释常量；所有 DB 操作放 `Dispatchers.IO`，不占主线程
 
 ### 6.2 安全
 

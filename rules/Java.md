@@ -79,6 +79,11 @@ alwaysApply: false
 - 数据库查询必须有分页或数量限制，禁止无条件全表查询
 - 历史数据查询优先 `Set` 入参、`Map` 出参，避免重复数据与调用方二次遍历
 - 数据导入/迁移优先批量 `upsert`、批量查询、批量写入
+- 批量写操作（批量 update / insert / upsert / delete）必须做批大小控制：单批超过阈值时循环分批处理，避免单条 SQL 报文过大、`IN` 参数超限、锁范围过大、长事务与内存峰值
+  - 默认阈值 `BATCH_SIZE = 200`，提取为带业务注释的常量，禁止魔法数字；阈值按操作复杂度调整（简单单字段 update 可放大到 500-1000，多字段 upsert 应更小），调整时注释说明依据
+  - 分批优先复用已有工具（Guava `Lists.partition`、Hutool `CollUtil.split`、Commons `ListUtils.partition`），不手写 `subList` 循环
+  - 必须显式决策分批后的事务与失败语义：是「整体一个事务」还是「每批独立事务」；某批失败时前面已成功的批是否回滚、是中断还是跳过并记录失败明细。不允许默默各批独立提交而不说明
+  - 若框架已内建批处理（MyBatis `ExecutorType.BATCH`、JPA `hibernate.jdbc.batch_size`），先确认是否已生效，避免手动再切一层造成冗余
 
 ## 类型设计
 
