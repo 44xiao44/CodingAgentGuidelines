@@ -125,14 +125,29 @@ async function fetchRuleContent(fileName) {
   }
 }
 
+// [业务] 在 Cursor .mdc 正文末尾追加溯源注释，指回团队通用规则源文件，方便阅读者知道从何而来、去哪修改。
+// [设计] 用 HTML 注释形式，不污染 Markdown 渲染，也不影响 Cursor 对 frontmatter 的识别（frontmatter 在开头原样保留）；
+//        幂等——正文已含标记则原样返回，避免每天同步反复堆叠注释。
+function appendSourceRef(body, fileName) {
+  // [字段] marker：溯源注释的固定前缀，兼作幂等判定标记。
+  const marker = "<!-- team-rule-source:";
+  if (body.includes(marker)) {
+    return body;
+  }
+  // [设计] 去掉尾部空白再拼接，保证注释与正文之间恰好空一行，多次运行结果稳定。
+  const trimmed = body.replace(/\s+$/, "");
+  return `${trimmed}\n\n${marker} 来源 rules/${fileName}，由 rule-install 会话 hook 自动同步，请勿手动编辑；修改请提交到规则源仓库。 -->\n`;
+}
+
 async function updateRules(ruleFiles = RULE_FILES, rulesDir = RULES_DIR) {
   for (const fileName of ruleFiles) {
     try {
       // [业务] 用仓库中的 .md 源名下载，Cursor 端落地时改写扩展名为 .mdc。
-      // [设计] 仓库只维护一套 .md，Cursor 识别 .mdc，故仅在写入文件名处做转换，正文不变。
+      // [设计] 仓库只维护一套 .md，Cursor 识别 .mdc，故仅在写入文件名处做转换；正文仅追加溯源注释，规则内容不变。
       const body = await fetchRuleContent(fileName);
       const localName = fileName.replace(/\.md$/i, ".mdc");
-      const writtenPath = await writeRuleFile(rulesDir, localName, body);
+      const withAttribution = appendSourceRef(body, fileName);
+      const writtenPath = await writeRuleFile(rulesDir, localName, withAttribution);
       console.error(`[sessionStart-rule-hook] 已更新规则：${writtenPath}`);
     } catch (error) {
       // [设计] 单个文件失败只记录，不影响其余规则同步。
@@ -172,5 +187,6 @@ if (require.main === module) {
 module.exports = {
   ensureDailyUpdate,
   getLocalDateText,
-  writeRuleFile
+  writeRuleFile,
+  appendSourceRef
 };

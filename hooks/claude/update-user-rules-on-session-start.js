@@ -148,13 +148,23 @@ async function fetchRuleContent(fileName) {
  *
  * @returns {Promise<Array<{fileName: string, body: string, path: string}>>} 已写入规则文件列表。
  */
+// [业务] 剥离 .md 顶部 YAML frontmatter，只保留规则正文。
+// [设计] frontmatter（description/globs/alwaysApply）是给 Cursor 用的元数据，Claude 无此机制，
+//        写入 CLAUDE.md 导入块与注入当前会话时都只需正文；正则仅匹配开头的 `---...---` 块（非贪婪），
+//        不会误伤正文中间用作分隔线的 `---`；无 frontmatter 时原样返回。
+function stripFrontmatter(text) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(text);
+  return m ? text.slice(m[0].length) : text;
+}
+
 async function updateRules(ruleFiles = RULE_FILES, rulesDir = RULES_DIR) {
   // [字段] written：本次成功写入的规则文件元信息。
   const written = [];
   for (const fileName of ruleFiles) {
     try {
-      // [业务] 每个规则文件独立下载并落地。
-      const body = await fetchRuleContent(fileName);
+      // [业务] 每个规则文件独立下载并落地；剥离 frontmatter 后仅保留正文供 Claude 使用。
+      const raw = await fetchRuleContent(fileName);
+      const body = stripFrontmatter(raw);
       const writtenPath = await writeRuleFile(rulesDir, fileName, body);
       written.push({ fileName, body, path: writtenPath });
       console.error(`[sessionStart-rule-hook] 已更新规则：${writtenPath}`);
@@ -285,5 +295,6 @@ module.exports = {
   ensureDailyUpdate,
   getLocalDateText,
   writeRuleFile,
-  ensureImportBlock
+  ensureImportBlock,
+  stripFrontmatter
 };
