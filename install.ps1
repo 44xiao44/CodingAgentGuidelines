@@ -1,4 +1,4 @@
-# [业务] 为 Cursor 和 / 或 Claude Code 安装团队 hook（会话规则同步 + 工具调用记录 + 会话上报）。
+﻿# [业务] 为 Cursor 和 / 或 Claude Code 安装团队 hook（会话规则同步 + 工具调用记录 + 会话上报）。
 # [设计] Windows 端安装脚本，与 install.sh 职责对齐：重活（JSON 智能合并）交给
 #        node lib/merge-config.js，本脚本只负责检测 node、拷贝 hook 文件、调用合并脚本。
 #        JSON 合并不依赖 PowerShell 版本特性，因此可在 Windows 8 / Server 2012+（PS 3.0+）运行。
