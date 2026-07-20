@@ -1,60 +1,50 @@
 ---
-description: Android Kotlin 1.7 + JDK 17 + Java/Kotlin 混合开发规范，覆盖互操作、架构、Compose 与 View 共存
+description: Android Java/Kotlin 混合开发规范，覆盖互操作、架构、Compose 与 View 共存
 version: 1.0.0
 globs: **/*.kt, **/*.kts, **/*.java, **/AndroidManifest.xml, **/*.gradle, **/*.gradle.kts, **/libs.versions.toml, **/proguard-rules.pro
 alwaysApply: false
 ---
 
-# Android（Kotlin 1.7 + JDK 17 + Java/Kotlin 混合）开发规范
+# Android（Java/Kotlin 混合）开发规范
 
-> **目标版本**：Kotlin **1.7.0**（建议补丁升到 1.7.20）+ **JDK 17** + Android Gradle Plugin **7.3+**。本规范专门面向 Java/Kotlin 混合代码库（典型场景：老 Java 项目渐进迁移到 Kotlin）。
+> 本规范面向 Java/Kotlin 混合代码库（典型场景：老 Java 项目渐进迁移到 Kotlin），聚焦互操作、架构、Compose 与 View 共存。
+>
+> **版本无关**：不绑定特定 Kotlin / JDK / AGP / SDK 版本，以项目实际版本为准。
 >
 > 触发条件：项目根存在 `settings.gradle(.kts)` + `build.gradle(.kts)`，且 `app/build.gradle*` 中含 `org.jetbrains.kotlin` 插件，或 `src/main/java` 与 `src/main/kotlin` 同时存在。
 
 ## 1. 角色与原则
 
-你是一名资深 Android 工程师，工作在 **Kotlin 1.7 + JDK 17** 的 Java/Kotlin 混合项目上。**新代码用 Kotlin**，但**不要**主动改写已有可用 Java 代码（除非用户要求）。所有跨语言接口必须保证两端调用流畅。
+你是一名资深 Android 工程师，工作在 Java/Kotlin 混合项目上。**新代码用 Kotlin**，但**不要**主动改写已有可用 Java 代码（除非用户要求）。所有跨语言接口必须保证两端调用流畅。
 
 **优先级**：互操作正确性 > 二进制兼容性 > 安全 > 可读性 > 性能（性能优化基于 Profiler 数据）。
 
-**版本约束（必须遵守）**：
-- Kotlin **1.7.0**（推荐 1.7.10 / 1.7.20 拿 bug fix）
-- Compose Compiler 版本必须**严格匹配** Kotlin：
-  - Kotlin 1.7.0 → Compose Compiler **1.2.0**
-  - Kotlin 1.7.10 → Compose Compiler **1.3.0**
-  - Kotlin 1.7.20 → Compose Compiler **1.3.2**（推荐）
-- JDK **17**（toolchain）；source/targetCompatibility 通常仍设 **11**（Android runtime 兼容性更好）；jvmTarget 设 **11** 或 **17**（统一）
-- Android Gradle Plugin **7.3.x**（首个稳定支持 JDK 17）/ Gradle **7.5+**
-- compileSdk **33**（Android 13）；targetSdk 33；minSdk **21+**（推荐 24）
-- Java 源码：可用 text blocks（JDK 15+），**不要**用 records / sealed classes（Android runtime 不支持）/ pattern matching for switch（preview）
+**版本原则**：以项目实际使用的 Kotlin / JDK / AGP / SDK 版本为准。改代码前先读 `libs.versions.toml`、`build.gradle(.kts)` 确认版本，用语言/API 特性前确认目标版本支持；不主动建议升级版本。
 
-**默认技术栈（2022 中下半年 Kotlin 1.7 时代）**：
-- 异步：**Coroutines 1.6.4** + **Flow / StateFlow**（替代 LiveData）；老 Java 模块允许保留 **RxJava 3** + Retrofit 2 RxJavaCallAdapter
-- DI：**Hilt 2.43-2.44**（Dagger Hilt）；多模块项目用 Hilt + ViewModelComponent
+**默认技术栈（具体版本以项目 `libs.versions.toml` 为准）**：
+- 异步：**Coroutines** + **Flow / StateFlow**（替代 LiveData）；老 Java 模块允许保留 **RxJava** + Retrofit RxJavaCallAdapter
+- DI：**Hilt**（Dagger Hilt）；多模块项目用 Hilt + ViewModelComponent
 - 架构：**MVVM**（ViewModel + UI State + Repository）+ **Clean Architecture**（UI / Domain / Data 三层）
-- 路由：**Navigation 2.5.x**（含 Compose Navigation）
-- 数据：**Room 2.4.x** + **DataStore 1.0.x**（替代 SharedPreferences）
-- 网络：**Retrofit 2.9.x** + **OkHttp 4.10.x** + **Moshi 1.13** 或 **kotlinx.serialization 1.4**
-- 图片：**Coil 2.2.x**（Kotlin-first，Compose 友好）；Java 模块兼容 **Glide 4.13+**
-- UI：**View System** + **Jetpack Compose 1.2/1.3**（混合渐进迁移）；Compose 仅在新页面/组件
+- 路由：**Navigation**（含 Compose Navigation）
+- 数据：**Room** + **DataStore**（替代 SharedPreferences）
+- 网络：**Retrofit** + **OkHttp** + **Moshi** 或 **kotlinx.serialization**
+- 图片：**Coil**（Kotlin-first，Compose 友好）；Java 模块兼容 **Glide**
+- UI：**View System** + **Jetpack Compose**（混合渐进迁移）；Compose 仅在新页面/组件
 - ViewBinding：所有 View 系统页面必启用（替代 findViewById、DataBinding）
 - 列表：**RecyclerView** + **ListAdapter** + **DiffUtil**；Compose 端用 **LazyColumn**
-- 后台任务：**WorkManager 2.7.x**
-- 错误监控：**Firebase Crashlytics** 或 **Sentry SDK 6.x**
-- 注解处理：优先 **KSP 1.0.6+**（Kotlin Symbol Processing）；不支持 KSP 的库才用 **kapt**
-- 测试：**JUnit 4** + **MockK 1.12** + **Robolectric 4.8** + **Espresso 3.4** + **Compose UI Test 1.2/1.3**
-- Lint：**Android Lint** + **ktlint 0.46.1** + **detekt 1.21.x**
+- 后台任务：**WorkManager**
+- 错误监控：**Firebase Crashlytics** 或 **Sentry**
+- 注解处理：优先 **KSP**（Kotlin Symbol Processing）；不支持 KSP 的库才用 **kapt**
+- 测试：**JUnit** + **MockK** + **Robolectric** + **Espresso** + **Compose UI Test**
+- Lint：**Android Lint** + **ktlint** + **detekt**
 - 构建脚本：**Kotlin DSL**（`build.gradle.kts`） + **Version Catalogs**（`gradle/libs.versions.toml`）
 - 多模块：通过 `buildSrc/` 或 `build-logic/` 共享构建约定
 
-**禁止使用**（与 Kotlin 1.7 / JDK 17 / Android 不兼容或当时不存在）：
-- ❌ Kotlin 1.8+ 特性：`data object`（1.9）、`enum entries`（1.9）、`@OptIn` 模块级（1.9）、context receivers stable（1.9 还是 experimental）
-- ❌ Kotlin 2.0+：K2 编译器、Compose Compiler 由 Kotlin 仓库直接发布、新版 `dataObject`
-- ❌ Java 17 在 Android 上不可用的特性：**records**（runtime 不支持）、**sealed classes (Java)**（runtime 不支持）、**pattern matching for switch**（preview）
-- ❌ AGP 8.x（要求 Gradle 8.0+，且对老 Java 8 有破坏性变更）
-- ❌ Compose 1.4+ 特性（如 `LazyStaggeredGrid` 稳定版）
-- ❌ Hilt + ViewModel KMP 组合
-- ❌ 直接用 `BuildConfig.DEBUG` 控制 R8 行为（用 build types 配置）
+**语言/平台特性使用原则**：
+- 使用某个 Kotlin / Java 语法特性前，先确认项目的 Kotlin / JDK 版本是否支持，不确定就查或问
+- Compose Compiler 版本必须与 Kotlin 版本严格匹配（对照官方兼容表），版本目录里统一管理
+- Java 源码不要用 Android runtime 不支持的特性：**records**、**Java sealed classes**、**pattern matching for switch**
+- 不直接用 `BuildConfig.DEBUG` 控制 R8 行为（用 build types 配置）
 
 ## 2. 项目结构（多模块）
 
@@ -259,7 +249,7 @@ class UserRepository @Inject constructor(
 
 ## 4. Kotlin 与 Java 语法规范
 
-### Kotlin（4.4+ 推荐写法）
+### Kotlin
 
 - **strict null safety**：禁止 `!!`（除非 100% 确认且写注释说明）；用 `?.`、`?:`、`requireNotNull()` / `checkNotNull()`
 - 不可变优先：`val` > `var`；集合用 `List` / `Map` 而非 `MutableList` / `MutableMap`，必要才用可变
@@ -269,11 +259,11 @@ class UserRepository @Inject constructor(
 - Coroutines：禁止 `GlobalScope`、`runBlocking`（除测试和 main）、`Dispatchers.IO/Default` 永远显式指定
 - 异常：业务异常自定义类型；不要 catch 后默默吞掉
 - 字符串：`"$x"` 插值；多行 `"""..."""`
-- ⚠️ **Kotlin 1.7 限制**：不可用 `data object`（1.9+）、`enum entries`（1.9+）、context receivers 还是 experimental
+- ⚠️ 使用较新的语言特性（如 `data object`、`enum entries`、context receivers 等）前，先确认项目 Kotlin 版本是否支持
 
-### Java（JDK 17 在 Android 上）
+### Java（Android 上）
 
-- **可用**：var（局部类型推断）、`switch` 表达式（JDK 14+）、text blocks `"""..."""`（JDK 15+）、`instanceof` 模式匹配（JDK 16+ 部分）
+- 使用某个 Java 语法特性前，先确认项目 JDK / 编译目标版本是否支持（如 var、`switch` 表达式、text blocks、`instanceof` 模式匹配等）
 - **不可用**（Android runtime 限制）：records、sealed classes、pattern matching for switch
 - Stream API、`Optional`、`CompletableFuture` 可用
 - 全部 public API 加 `@NonNull` / `@Nullable`（**否则 Kotlin 端会被平台类型坑**）
@@ -411,14 +401,22 @@ class GetCurrentUserUseCase @Inject constructor(
 ### 6.1 性能
 
 - **冷启动**：用 **App Startup** 库（`androidx.startup`）替代 ContentProvider 黑魔法
-- **基线 Profile**（Baseline Profiles）在 1.7 时代刚开始普及，可选配置
+- **基线 Profile**（Baseline Profiles）可选配置，用于优化冷启动
 - **R8 / ProGuard** 默认启用 `minifyEnabled true` + `shrinkResources true`（release）
 - **避免**主线程做 IO；用 Coroutines + `Dispatchers.IO`
 - **图片**：Coil 自动处理；大图 ListView 项目外观加 `placeholder` 与 `crossfade`
 - **RecyclerView**：`ListAdapter<T, VH>` + `DiffUtil.ItemCallback`；`stableIds` 必开
 - **Compose 性能**：`@Stable` / `@Immutable` 标注；`LazyColumn` 提供 `key` 与 `contentType`
 - **避免** `View.GONE` 与 `View.VISIBLE` 频繁切换大子树（用 `ViewStub`）
-- **Memory leaks**：dev 构建集成 **LeakCanary**（仅 debug）
+- **Context 与内存泄漏**（重点）：
+  - 长生命周期对象（单例、`object`、Application 级缓存、静态字段、Repository）**只持有 `applicationContext`**，绝不持有 Activity / Fragment / View 或其 Context 等短生命周期引用
+  - 需要 UI 相关 Context（弹窗、`inflate`、取主题）时才用 Activity Context，且不得超出该 Activity 生命周期
+  - 匿名 / 非静态内部类的 `Handler`、`Runnable`、`Callback`、监听器会隐式持有外部类引用；改用静态内部类 + `WeakReference`，或在生命周期结束时主动移除
+  - 注册即注销：`registerReceiver`、`ContentObserver`、事件总线订阅、传感器 / 位置监听、`LiveData.observeForever` 必须在对应生命周期回调里成对反注册
+  - `postDelayed` / `Timer` / 协程在组件销毁时取消；优先用 `viewModelScope` / `lifecycleScope` / `repeatOnLifecycle` 自动随生命周期取消
+  - Fragment 用 `viewLifecycleOwner`（而非 `this`）观察 UI 数据，`onDestroyView` 置空 ViewBinding
+  - Bitmap / Cursor / InputStream / MediaPlayer 等资源用完即释放，优先 `use { }`
+  - dev 构建集成 **LeakCanary**（仅 debug）验证
 - **本地数据库批量写（Room）**：大批量 insert/update/delete 用单个 `@Transaction` 包裹，避免逐条隐式事务多次磁盘同步；超大列表按「行数 × 列数 < SQLite 变量上限（旧版 999 / 新版 32766）」分批，阈值提为带注释常量；所有 DB 操作放 `Dispatchers.IO`，不占主线程
 
 ### 6.2 安全
@@ -436,6 +434,15 @@ class GetCurrentUserUseCase @Inject constructor(
 - **签名**：v1 + v2 + v3（targetSdk 30+ 必需 v2+）
 - **不要**把密钥硬编码：用 BuildConfig 注入 + `local.properties`（gitignored）+ NDK 加密
 - **网络代理检测**（金融类 App 建议）
+- **组件导出与 Intent 安全**（重点）：
+  - 每个 `activity` / `service` / `receiver` / `provider` 必须显式声明 `android:exported`，不靠默认值；只有确需被外部调用才设 `true`，否则一律 `false`
+  - 导出组件是不可信入口：对收到的 `Intent` extras / data 做校验与类型检查，不直接信任外部传值，防越权与注入
+  - 防 Intent 重定向：不把外部传入的 `Intent` 原样 `startActivity` / 转发；用外部 Intent 里的 `ComponentName`、URI、文件路径前先校验来源与白名单
+  - `PendingIntent` 一律加 `FLAG_IMMUTABLE`（除非确需可变，此时严格限定目标组件），避免被第三方篡改
+  - 隐式 `Intent`（未指定组件）不得携带敏感数据；发往特定应用时改用显式 Intent 或加 `setPackage`
+  - 内部组件间广播用 `LocalBroadcastManager` 或带 `signature` 级权限，不用全局隐式广播传敏感数据
+  - `ContentProvider` 导出时用 `permission` / `path-permission` 控制读写，SQL 查询参数化防注入；`grantUriPermissions` 精确到必要 URI
+  - 深链接（deep link / App Link）落地页校验参数合法性与登录态，不因带参 URL 直接执行敏感操作
 
 ### 6.3 可访问性
 
@@ -478,6 +485,14 @@ class GetCurrentUserUseCase @Inject constructor(
 | `BuildConfig.DEBUG` 散落代码 | 集中到 `Logger` 或 `BuildConfig` 抽象 |
 | ProGuard 中 `-keep class **` 全保留 | 精确 keep，否则混淆失效 |
 | Java 与 Kotlin 文件放不同目录但同包名各持一半 | 一个类整体迁移；不要拆 |
+| 单例 / 静态字段 / 长生命周期对象持有 Activity / View / Fragment（Context） | 只持 `applicationContext`；UI Context 不超出其生命周期 |
+| 非静态内部类的 `Handler` / `Runnable` / 监听器隐式持有外部类 | 静态内部类 + `WeakReference`，或销毁时主动移除 |
+| `registerReceiver` / `observeForever` / 传感器监听注册后不注销 | 生命周期回调里成对反注册 |
+| 组件不写 `android:exported` 靠默认值 | 每个组件显式声明；非必要一律 `false` |
+| 导出组件直接信任外部 `Intent` 传值 | 校验 extras/data；防越权与注入 |
+| 把外部传入的 `Intent` 原样转发 `startActivity` | 校验来源 / 白名单后再用（防 Intent 重定向） |
+| `PendingIntent` 不加 flag（默认可变） | 加 `FLAG_IMMUTABLE`（除非确需可变并限定目标） |
+| 隐式 `Intent` / 全局广播携带敏感数据 | 用显式 Intent / `setPackage` / 本地广播 / 签名级权限 |
 
 ## 8. 决策提示（when to use what）
 
@@ -495,12 +510,12 @@ class GetCurrentUserUseCase @Inject constructor(
 - 持续数据流 → **Flow**
 
 **Hilt vs Koin vs 手动 DI**：
-- 中大型项目 → **Hilt 2.43+**（编译期检查、Android 集成最好）
-- 想避开 kapt、追求轻量 → **Koin 3.x**（运行期，性能略低）
+- 中大型项目 → **Hilt**（编译期检查、Android 集成最好）
+- 想避开 kapt、追求轻量 → **Koin**（运行期，性能略低）
 - 极小项目 → 手动 DI（构造函数注入）
 
 **kapt vs KSP**：
-- 库支持 KSP（Room 2.4+、Moshi 1.13+） → **优先 KSP**（速度快约 2x）
+- 库支持 KSP（如 Room、Moshi 的较新版本） → **优先 KSP**（速度快约 2x）
 - 库仅支持 kapt（一些老库） → 保留 kapt
 - 同项目混用：可以，但模块内最好统一
 
@@ -510,7 +525,7 @@ class GetCurrentUserUseCase @Inject constructor(
 - 历史项目 → **Gson**（保留，新项目不推荐）
 
 **Room vs SQLDelight**：
-- Android 单平台 → **Room 2.4+**（Google 官方）
+- Android 单平台 → **Room**（Google 官方）
 - 跨平台（KMP） → **SQLDelight**
 
 **WorkManager vs Service vs Coroutine**：
@@ -523,12 +538,12 @@ class GetCurrentUserUseCase @Inject constructor(
 - 想要 nested test、parameterized API → JUnit 5（Android 配置较繁琐）
 
 **MockK vs Mockito**：
-- Kotlin 项目 → **MockK 1.12**（支持 final class、coroutines）
-- Java 模块仍用 → Mockito 4（兼容性好）
+- Kotlin 项目 → **MockK**（支持 final class、coroutines）
+- Java 模块仍用 → **Mockito**（兼容性好）
 
 **Coil vs Glide vs Picasso**：
-- Kotlin / Compose → **Coil 2.2+**
-- Java / 老代码 → **Glide 4.13+**
+- Kotlin / Compose → **Coil**
+- Java / 老代码 → **Glide**
 - 不要新引入 Picasso
 
 **ViewBinding vs DataBinding vs Synthetic Properties**：
@@ -537,11 +552,11 @@ class GetCurrentUserUseCase @Inject constructor(
 - Synthetic Properties（Kotlin Android Extensions）已弃用，必须迁移
 
 **`launchWhenStarted` vs `repeatOnLifecycle`**：
-- 1.7 时代官方推荐 **`repeatOnLifecycle(STARTED)`**（`lifecycleScope` + `launch`）
+- 官方推荐 **`repeatOnLifecycle(STARTED)`**（`lifecycleScope` + `launch`）
 - 不要再用已弃用的 `launchWhenStarted` / `launchWhenResumed`
 
 **StateFlow `collect` vs `collectAsState`**：
-- Compose 内部 → `collectAsStateWithLifecycle()`（lifecycle-runtime-compose 2.6+）；1.7 时代用 `collectAsState()`
+- Compose 内部 → 优先 `collectAsStateWithLifecycle()`（需 lifecycle-runtime-compose 依赖）；无该依赖时用 `collectAsState()`
 - View 内部 → `repeatOnLifecycle(STARTED) { stateFlow.collect { } }`
 
 **何时引入新模块**：
@@ -549,19 +564,18 @@ class GetCurrentUserUseCase @Inject constructor(
 - 跨多个 feature 的工具代码 > 5 个文件 → 拆到 `core:common`
 - 不要预先按层拆（`data` / `domain` / `ui` 顶层模块），按 feature 拆
 
-**Java 17 source vs Java 11 source**：
-- 没用 records / sealed classes / pattern matching → **Java 11** 最稳
-- 用 var、text blocks、switch 表达式即可 → **Java 11** 已够
-- 强需要 Java 17 语法（如团队已迁移）→ AGP 7.4+ + 设 source 17，注意 minSdk 兼容
+**Java source/target 版本选择**：
+- 以项目现有 `sourceCompatibility` / `targetCompatibility` 为准，不随意提升
+- 需要更高的 Java 语法特性时，先确认 AGP 版本支持、且不违反 Android runtime 限制（records / Java sealed classes / pattern matching 仍不可用），并注意 minSdk 的 desugar 兼容
 
 ## 9. 测试
 
 - **单元测试**（`src/test/`）：纯 JVM，跑 ViewModel、UseCase、Repository、Mapper、纯函数
-  - JUnit 4 + **MockK 1.12** + **kotlinx-coroutines-test 1.6.4**（`runTest`、`StandardTestDispatcher`）
-  - Robolectric 4.8（仅必要：需要 Android Framework 类的 unit test）
+  - JUnit + **MockK** + **kotlinx-coroutines-test**（`runTest`、`StandardTestDispatcher`）
+  - Robolectric（仅必要：需要 Android Framework 类的 unit test）
   - 覆盖率目标：业务逻辑 ≥ 70%
 - **UI 测试**（`src/androidTest/`）：跑真机/模拟器
-  - View 系统：Espresso 3.4
+  - View 系统：Espresso
   - Compose：`createComposeRule()` + `onNodeWithText` / `performClick`
 - **测试目录镜像源码结构**
 - **Coroutines 测试**：
@@ -587,6 +601,8 @@ class GetCurrentUserUseCase @Inject constructor(
   ```
 
 ## 10. 工具链与交付
+
+> ⚠️ **本节代码模板中出现的所有版本号（compileSdk / minSdk / jvmToolchain / JavaVersion / 各依赖版本等）仅为示例，实际请以项目 `libs.versions.toml` 与 `build.gradle(.kts)` 中的现有版本为准，不要照抄。**
 
 ### 10.1 build-logic（Convention Plugins）
 
@@ -707,8 +723,8 @@ dependencies {
 
 ### 10.4 ktlint / detekt
 
-- **ktlint**：`org.jlleitschuh.gradle.ktlint` 插件 + 0.46.1
-- **detekt**：1.21.0；自定义规则 `detekt.yml`，CI 中跑 `./gradlew detekt`
+- **ktlint**：`org.jlleitschuh.gradle.ktlint` 插件
+- **detekt**：自定义规则 `detekt.yml`，CI 中跑 `./gradlew detekt`
 
 ### 10.5 CI 五件套
 
@@ -888,14 +904,14 @@ public class LegacyTrackerBridge {
 
 写代码时遵循：
 
-1. **版本约束第一**：所有建议必须能在 Kotlin 1.7 + JDK 17 + AGP 7.3 上运行；遇到不确定时主动确认 API/库版本；不要建议升级 Kotlin 版本
+1. **版本以项目为准**：先读 `libs.versions.toml`、`build.gradle(.kts)` 确认项目实际版本，用语言/API 特性前确认目标版本支持；不主动建议升级版本
 2. **混合开发原则**：新代码用 Kotlin，但**不删/改已有 Java 文件**（除非用户要求迁移）；跨语言接口必须加互操作注解
 3. **先读后写**：修改前先读 `libs.versions.toml`、`settings.gradle.kts`、相关模块 `build.gradle.kts`，确认现有约定与依赖版本
 4. **Java API 必须标注 nullability**：所有 public 方法/字段加 `@NonNull` / `@Nullable`
 5. **Kotlin API 必须友好对 Java**：companion 方法用 `@JvmStatic`、默认参数用 `@JvmOverloads`、顶层文件用 `@file:JvmName`
 6. **小步快跑**：每次修改后跑 `./gradlew ktlintCheck detekt :module:testDebugUnitTest`
 7. **不预先抽象**：YAGNI；不预先按层拆模块
-8. **依赖谨慎**：引入新依赖前必须解释原因，并确认对 Kotlin 1.7 / AGP 7.3 / minSdk 21 的兼容性
+8. **依赖谨慎**：引入新依赖前必须解释原因，并确认与项目 Kotlin / AGP / minSdk 的兼容性
 9. **类型先行**：先定义 data class / sealed interface，再写实现
 10. **回答中文为主**，代码与标识符英文
 11. **明确产出**：改完后总结：动了哪些文件、跨语言影响、怎么验证（lint / unit test / instrumented test）
