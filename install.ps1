@@ -25,21 +25,26 @@ function Write-Warn { param([string]$Message) Write-Host "[install] $Message" -F
 function Write-Err  { param([string]$Message) Write-Host "[install] $Message" -ForegroundColor Red }
 
 # [业务] 校验 node 存在且版本达标，否则 hook 无法运行，直接中止。
-# [设计] 用 process.versions.node 取主版本号，比解析文本更稳。
+# [设计] 解析 node --version 文本取主版本号。不用 node -e 传 JS，因 Windows PowerShell 5.1
+#        向原生命令传参会吞掉内嵌双引号，导致 JS 语法错误、安装中断。
 function Test-Node {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
         Write-Err "未检测到 node。这些 hook 是 Node.js 脚本，请先安装 Node.js $MinNodeMajor+ 后重试。"
         exit 1
     }
-    # [字段] nodeMajor：当前 node 主版本号。
-    $nodeMajor = (& node -e 'process.stdout.write(process.versions.node.split(".")[0])' 2>$null)
-    if ([string]::IsNullOrEmpty($nodeMajor) -or [int]$nodeMajor -lt $MinNodeMajor) {
-        $current = (& node --version 2>$null)
-        Write-Err "Node 版本过低（需 $MinNodeMajor+，当前 $current）。hook 依赖全局 fetch，请升级后重试。"
+    # [字段] nodeVersion：node --version 输出，形如 v18.17.0。
+    $nodeVersion = (& node --version 2>$null)
+    # [字段] nodeMajor：解析出的主版本号，解析失败按 0 处理触发下方版本过低分支。
+    $nodeMajor = 0
+    if ($nodeVersion -match '^v?(\d+)\.') {
+        $nodeMajor = [int]$Matches[1]
+    }
+    if ($nodeMajor -lt $MinNodeMajor) {
+        Write-Err "Node 版本过低（需 $MinNodeMajor+，当前 $nodeVersion）。hook 依赖全局 fetch，请升级后重试。"
         exit 1
     }
-    Write-Log "已检测到 Node $(& node --version)"
+    Write-Log "已检测到 Node $nodeVersion"
 }
 
 # [业务] 安装单个工具的 hook：拷贝脚本 + 智能合并配置。
