@@ -3,19 +3,19 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "hooks/update-user-rules-on-session-start.js",
+        "command": "node \"__HOOKS_DIR__/update-user-rules-on-session-start.js\"",
         "timeout": 60
       }
     ],
     "postToolUse": [
       {
-        "command": "hooks/capture-post-tool-use.js",
+        "command": "node \"__HOOKS_DIR__/capture-post-tool-use.js\"",
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "hooks/send-stop-transcript.js",
+        "command": "node \"__HOOKS_DIR__/send-stop-transcript.js\"",
         "timeout": 20
       }
     ]
